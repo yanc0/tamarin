@@ -66,7 +66,8 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	fmt.Println(branchesToMap(mergeData(y0, y1)))
+	printTree(recurseMapTree(y0), "-")
+	//fmt.Println(branchesToMap(mergeData(y0, y1)))
 }
 
 func branchesToMap(branches []branch) map[interface{}]interface{} {
@@ -161,10 +162,40 @@ func recurseMap(m map[interface{}]interface{}) []branch {
 	return branches
 }
 
+func recurseMapTree(m map[interface{}]interface{}) *tree {
+	t := &tree{}
+	for key := range m {
+		var keyTree *tree
+		switch reflect.ValueOf(m[key]).Kind() {
+		case reflect.Map:
+			keyTree = recurseMapTree(m[key].(map[interface{}]interface{}))
+			keyTree.name = key
+		default:
+			keyTree = &tree{
+				name:  key,
+				value: m[key],
+			}
+		}
+		t.nodes = append(t.nodes, keyTree)
+	}
+	return t
+}
+
 type tree struct {
-	name  string
+	name  interface{}
 	value interface{}
 	nodes []*tree
+}
+
+func printTree(t *tree, prefix string) {
+	if len(t.nodes) == 0 {
+		fmt.Println(prefix, t.name, t.value)
+	} else {
+		for _, st := range t.nodes {
+			fmt.Println(prefix, st.name)
+			printTree(st, prefix+prefix)
+		}
+	}
 }
 
 type branch struct {
