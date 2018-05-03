@@ -66,141 +66,99 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	printTree(recurseMapTree(y0), "-")
+	printTree(recurseMapTree(y0).Copy(), "-")
 	//fmt.Println(branchesToMap(mergeData(y0, y1)))
 }
 
-func branchesToMap(branches []branch) map[interface{}]interface{} {
-	m := make(map[interface{}]interface{})
-	for _, b := range branches {
-		key := b.path[0]
-		m[key] = branchToMap(b)[key]
-	}
-	return m
-}
+func mergeTrees(t1 *tree, t2 *tree) *tree {
+	tree := t1.Copy()
 
-func branchToMap(b branch) map[interface{}]interface{} {
-	m := make(map[interface{}]interface{})
-	if len(b.path) == 1 {
-		key := b.path[0]
-		m[key] = b.leaf
-	} else {
-		key := b.path[0]
-		b.path = append(b.path[:0], b.path[1:]...)
-		m[key] = branchToMap(b)
-	}
-	return m
-}
-
-func mergeData(src map[interface{}]interface{}, merge map[interface{}]interface{}) []branch {
-	srcBranches := recurseMap(src)
-	mergeBranches := recurseMap(merge)
-	for i, srcB := range srcBranches {
-		for _, mergeB := range mergeBranches {
-			if isSameBranchPath(srcB, mergeB) {
-				srcBranches[i].leaf = mergeB.leaf
-			}
-		}
-	}
-
-	for _, mergeB := range mergeBranches {
-		if !isBranchPresent(mergeB, srcBranches) {
-			srcBranches = append(srcBranches, mergeB)
-		}
-	}
-
-	return srcBranches
-}
-
-func isBranchPresent(a branch, branches []branch) bool {
-	for _, b := range branches {
-		if isSameBranchPath(a, b) {
-			return true
-		}
-	}
-	return false
-}
-
-func isSameBranchPath(a branch, b branch) bool {
-	for i := range a.path {
-		if a.path[i] != b.path[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func recurseMap(m map[interface{}]interface{}) []branch {
-	var branches []branch
-	for key := range m {
-		if reflect.ValueOf(m[key]).Kind() == reflect.Map {
-			b := recurseMap(m[key].(map[interface{}]interface{}))
-			for i, br := range b {
-				b[i].path = append([]string{key.(string)}, br.path...)
-			}
-			branches = append(branches, b...)
-		} else if reflect.ValueOf(m[key]).Kind() == reflect.Slice &&
-			len(m[key].([]interface{})) > 0 &&
-			reflect.ValueOf(m[key].([]interface{})[0]).Kind() == reflect.Map {
-			for j, m := range m[key].([]interface{}) {
-				b := recurseMap(m.(map[interface{}]interface{}))
-				for i, br := range b {
-					br.path = append([]string{strconv.Itoa(j)}, br.path...)
-					b[i].path = append([]string{key.(string)}, br.path...)
-				}
-				branches = append(branches, b...)
-			}
-		} else {
-			path := []string{key.(string)}
-			b := branch{
-				leaf: m[key],
-				path: path,
-			}
-			branches = append(branches, b)
-		}
-	}
-	return branches
+	return tree
 }
 
 func recurseMapTree(m map[interface{}]interface{}) *tree {
-	t := &tree{}
+	t := makeTree()
 	for key := range m {
 		var keyTree *tree
 		switch reflect.ValueOf(m[key]).Kind() {
 		case reflect.Map:
 			keyTree = recurseMapTree(m[key].(map[interface{}]interface{}))
 			keyTree.name = key
+
+		case reflect.Slice:
+			keyTree = &tree{
+				name: key,
+			}
+			if isSliceContainsMap(m[key].([]interface{})) {
+				for i, mp := range m[key].([]interface{}) {
+					tmpTree := recurseMapTree(mp.(map[interface{}]interface{}))
+					tmpTree.name = strconv.Itoa(i)
+					keyTree.Append(tmpTree)
+				}
+			} else {
+				keyTree.value = m[key]
+			}
+
 		default:
 			keyTree = &tree{
 				name:  key,
 				value: m[key],
 			}
 		}
-		t.nodes = append(t.nodes, keyTree)
+		t.Append(keyTree)
 	}
 	return t
 }
 
+
+func makeTree() *tree {
+	nodes := make(map[interface{}]*tree)
+	return &tree{
+		nodes: nodes,
+	}
+}
 type tree struct {
 	name  interface{}
 	value interface{}
-	nodes []*tree
+	nodes map[interface{}]*tree
+}
+
+func (t *tree) Append(add *tree) {
+	t.nodes[add.name] = add
+}
+
+func (t *tree) Copy() *tree {
+	tree := makeTree()
+	tree.name = t.name
+	if t.isLeaf() {
+		tree.value = t.value
+	} else {
+		for _, n := range t.nodes {
+			tree.Append(n.Copy())
+		}
+	}
+	return tree
+}
+
+func (t *tree) isLeaf() bool {
+	return len(t.nodes) == 0
+}
+
+func isSliceContainsMap(m []interface{}) bool {
+	return len(m) > 0 && reflect.ValueOf(m[0]).Kind() == reflect.Map
 }
 
 func printTree(t *tree, prefix string) {
 	if len(t.nodes) == 0 {
 		fmt.Println(prefix, t.name, t.value)
 	} else {
+		if t.name != nil {
+			fmt.Println(prefix, t.name)
+		}
 		for _, st := range t.nodes {
-			fmt.Println(prefix, st.name)
-			printTree(st, prefix+prefix)
+			printTree(st, prefix+"-")
 		}
 	}
-}
-
-type branch struct {
-	path []string
-	leaf interface{}
 }
 
 type stringsByLen []string
