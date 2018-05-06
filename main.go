@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// Every file is a key, the paths where the file have
-	// been seen if referenced
+	// been seen are referenced
 	var m = make(map[string][]string)
 	for _, file := range fileList {
 		dir, file := filepath.Split(file)
@@ -69,6 +69,13 @@ func main() {
 	t1 := lib.MapToTree(y1)
 
 	t0.MergeTree(t1)
+
+	r := lib.NewDefaultReplacer()
+	fc := lib.FileContext{}
+	fc.AddVar("path", "pouette")
+	fc.AddVar("replicas", 10)
+
+	r.Replace(t0, fc)
 
 	y, err := yaml.Marshal(t0.ToMap())
 	if err != nil {
