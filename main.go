@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
-	"strconv"
 )
 
 func main() {
@@ -66,23 +65,46 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	printTree(recurseMapTree(y0).Copy(), "-")
-	//fmt.Println(branchesToMap(mergeData(y0, y1)))
+	t0 := mapToTree(y0)
+	t1 := mapToTree(y1)
+	//printTree(t0, "-")
+	//printTree(t1, "-")
+
+	fmt.Println("***************")
+	mergeTrees(t0, t1)
+	//printTree(t0, "-")
+
+	fmt.Println("***************")
+	y, _ := yaml.Marshal(t0.ToMap())
+	fmt.Println(string(y))
+
 }
 
-func mergeTrees(t1 *tree, t2 *tree) *tree {
-	tree := t1.Copy()
-
-	return tree
+func mergeTrees(t1 *tree, t2 *tree) {
+	if t2.isLeaf() {
+		t1 = t2
+	} else {
+		for _, n := range t2.nodes {
+			if n.isLeaf() {
+				t1.Append(n)
+			} else {
+				if _, ok := t1.nodes[n.name]; ok {
+					mergeTrees(t1.nodes[n.name], n)
+				} else {
+					t1.Append(n)
+				}
+			}
+		}
+	}
 }
 
-func recurseMapTree(m map[interface{}]interface{}) *tree {
+func mapToTree(m map[interface{}]interface{}) *tree {
 	t := makeTree()
 	for key := range m {
 		var keyTree *tree
 		switch reflect.ValueOf(m[key]).Kind() {
 		case reflect.Map:
-			keyTree = recurseMapTree(m[key].(map[interface{}]interface{}))
+			keyTree = mapToTree(m[key].(map[interface{}]interface{}))
 			keyTree.name = key
 
 		case reflect.Slice:
@@ -91,10 +113,11 @@ func recurseMapTree(m map[interface{}]interface{}) *tree {
 			}
 			if isSliceContainsMap(m[key].([]interface{})) {
 				for i, mp := range m[key].([]interface{}) {
-					tmpTree := recurseMapTree(mp.(map[interface{}]interface{}))
-					tmpTree.name = strconv.Itoa(i)
+					tmpTree := mapToTree(mp.(map[interface{}]interface{}))
+					tmpTree.name = i
 					keyTree.Append(tmpTree)
 				}
+				keyTree.isSliceOfMap = true
 			} else {
 				keyTree.value = m[key]
 			}
@@ -110,20 +133,49 @@ func recurseMapTree(m map[interface{}]interface{}) *tree {
 	return t
 }
 
-
 func makeTree() *tree {
 	nodes := make(map[interface{}]*tree)
 	return &tree{
 		nodes: nodes,
 	}
 }
+
 type tree struct {
-	name  interface{}
-	value interface{}
-	nodes map[interface{}]*tree
+	name         interface{}
+	value        interface{}
+	isSliceOfMap bool
+	nodes        map[interface{}]*tree
+}
+
+func (t *tree) isRoot() bool {
+	return t.name == nil
+}
+
+func (t *tree) ToMap() map[interface{}]interface{} {
+	m := make(map[interface{}]interface{})
+
+	for _, n := range t.nodes {
+		if n.isLeaf() {
+			m[n.name] = n.value
+		} else {
+			if ! n.isSliceOfMap {
+				m[n.name] = n.ToMap()
+			} else {
+				s := make([]interface{}, 0)
+				for i := range n.nodes {
+					s = append(s, n.nodes[i].ToMap())
+				}
+				m[n.name] = s
+			}
+		}
+	}
+	return m
 }
 
 func (t *tree) Append(add *tree) {
+	if t.nodes == nil {
+		t.nodes = make(map[interface{}]*tree)
+	}
 	t.nodes[add.name] = add
 }
 

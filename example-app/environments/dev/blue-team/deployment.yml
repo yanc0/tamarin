@@ -1,4 +1,9 @@
 ---
+metadata:
+  labels:
+    env: blue-team
+spec:
+  replicas: 4
 
 
 
