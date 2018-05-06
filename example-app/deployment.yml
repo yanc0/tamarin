@@ -5,6 +5,7 @@ metadata:
   labels:
     purpose: demonstrate-envars
 spec:
+  replicas: 3
   containers:
   - name: envar-demo-container
     image: gcr.io/google-samples/node-hello:1.0
